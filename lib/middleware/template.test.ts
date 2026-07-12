@@ -87,7 +87,7 @@ describe('template middleware', () => {
             item: [
                 {
                     title: 'Item',
-                    pubDate: '2019-01-01 00:00:00 +08:00',
+                    pubDate: '2019-01-01T00:00:00+08:00',
                 },
             ],
         };

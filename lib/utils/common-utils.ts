@@ -36,7 +36,7 @@ const formatDateToUTC8 = (date?: string | Date | number | null) => {
 
     const utc8Date = new Date(date.getTime() + UTC8_OFFSET);
 
-    return `${utc8Date.getUTCFullYear()}-${padNumber(utc8Date.getUTCMonth() + 1)}-${padNumber(utc8Date.getUTCDate())} ${padNumber(utc8Date.getUTCHours())}:${padNumber(utc8Date.getUTCMinutes())}:${padNumber(utc8Date.getUTCSeconds())} +08:00`;
+    return `${utc8Date.getUTCFullYear()}-${padNumber(utc8Date.getUTCMonth() + 1)}-${padNumber(utc8Date.getUTCDate())}T${padNumber(utc8Date.getUTCHours())}:${padNumber(utc8Date.getUTCMinutes())}:${padNumber(utc8Date.getUTCSeconds())}+08:00`;
 };
 
 const convertDateToISO8601 = (date?: string | Date | number | null) => {
