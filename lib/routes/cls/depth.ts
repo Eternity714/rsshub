@@ -1,9 +1,11 @@
 import { load } from 'cheerio';
 import dayjs from 'dayjs';
+import pMap from 'p-map';
 
 import InvalidParameterError from '@/errors/types/invalid-parameter';
 import type { Route } from '@/types';
 import cache from '@/utils/cache';
+import logger from '@/utils/logger';
 import ofetch from '@/utils/ofetch';
 import { parseDate } from '@/utils/parse-date';
 
@@ -66,7 +68,7 @@ async function handler(ctx) {
     const apiUrl = `${rootUrl}/v3/depth/list/${category}`;
     const currentUrl = `${rootUrl}/depth?id=${category}`;
 
-    const articles = [];
+    const articles: any[] = [];
     let lastTime = endDateTimestamp;
 
     while (true) {
@@ -79,6 +81,10 @@ async function handler(ctx) {
         });
         const currentArticles = response.data;
 
+        if (!Array.isArray(currentArticles)) {
+            throw new TypeError(`Unexpected CLS depth list response for category ${category}`);
+        }
+
         if (currentArticles.length === 0) {
             break;
         }
@@ -86,11 +92,16 @@ async function handler(ctx) {
         articles.push(
             ...currentArticles.filter((item) => {
                 const timestamp = Number(item.ctime);
-                return timestamp >= beginDateTimestamp && timestamp <= endDateTimestamp;
+                return Number.isFinite(timestamp) && timestamp >= beginDateTimestamp && timestamp <= endDateTimestamp;
             })
         );
 
         const currentLastTime = Number(currentArticles.at(-1).ctime);
+        if (!Number.isFinite(currentLastTime) || currentLastTime >= lastTime) {
+            logger.warn(`CLS depth pagination stopped due to invalid cursor: category=${category}, beginDate=${beginDate}, endDate=${endDate}, lastTime=${lastTime}, currentLastTime=${currentLastTime}`);
+            break;
+        }
+
         if (currentLastTime < beginDateTimestamp) {
             break;
         }
@@ -98,7 +109,7 @@ async function handler(ctx) {
         lastTime = currentLastTime;
     }
 
-    let items = articles.map((item) => ({
+    let items: any[] = articles.map((item) => ({
         title: item.title || item.brief,
         link: `${rootUrl}/detail/${item.id}`,
         pubDate: parseDate(item.ctime, 'X'),
@@ -107,22 +118,28 @@ async function handler(ctx) {
         image: item.image,
     }));
 
-    items = await Promise.all(
-        items.map((item) =>
-            cache.tryGet(item.link, async () => {
-                const detailResponse = await ofetch(item.link);
+    items = await pMap(
+        items,
+        async (item) => {
+            try {
+                return await cache.tryGet(item.link, async () => {
+                    const detailResponse = await ofetch(item.link);
 
-                const content = load(detailResponse);
+                    const content = load(detailResponse);
+                    const nextData = JSON.parse(content('script#__NEXT_DATA__').text());
+                    const articleDetail = nextData.props.pageProps.articleDetail;
 
-                const nextData = JSON.parse(content('script#__NEXT_DATA__').text());
-                const articleDetail = nextData.props.pageProps.articleDetail;
+                    item.author = articleDetail.author?.name ?? item.author ?? '';
+                    item.description = renderDepthDescription(articleDetail);
 
-                item.author = articleDetail.author?.name ?? item.author ?? '';
-                item.description = renderDepthDescription(articleDetail);
-
+                    return item;
+                });
+            } catch (error) {
+                logger.warn(`CLS depth detail request failed: category=${category}, link=${item.link}, error=${error}`);
                 return item;
-            })
-        )
+            }
+        },
+        { concurrency: 3 }
     );
 
     return {
