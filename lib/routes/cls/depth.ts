@@ -76,7 +76,9 @@ async function handler(ctx) {
         // eslint-disable-next-line no-await-in-loop
         const response = await ofetch(apiUrl, {
             query: getSearchParams({
+                id: category,
                 last_time: lastTime,
+                rn: 20,
             }),
         });
         const currentArticles = response.data;

@@ -42,6 +42,10 @@ describe('CLS 深度路由', () => {
         const handler = await getHandler();
         const result: any = await handler(createContext({ beginDate: '2026-07-07', endDate: '2026-07-07' }));
 
+        const [apiUrl, options] = ofetch.mock.calls[0];
+        expect(apiUrl).toContain('/v3/depth/list/1000');
+        expect(options.query).toMatchObject({ app: 'CailianpressWeb', id: '1000', last_time: timestamp + '', os: 'web', rn: '20', sv: '8.7.9' });
+        expect(options.query.sign).toBe('b0ee8b38f651ac282bdf1b99ad6f2a2c');
         expect(listRequests).toBe(1);
         expect(result.item).toHaveLength(2);
         expect(loggerWarn).toHaveBeenCalledWith(expect.stringContaining('invalid cursor'));
